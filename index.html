@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>XVEN</title>
+  <link rel="stylesheet" type="text/css" href="styles.css">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="UTF-8">
+</head>
+<body>
+  <div class="hud">
+     <div id="logo">
+		XVEN
+	 </div>
+     <div id="characterSelection">
+        <!-- Character images will be dynamically generated here -->
+     </div>
+	 <a style="position: absolute; top: 5px; right: 5px; display: block;" href="https://github.com/izuc/xven" target="_blank"><img src="github-mark.svg" height="50px" /></a>
+  </div>
+  <div class="game-container">
+    <div id="loadingScreen" class="loading-screen" style="display: none;">Loading...</div>
+    <div id="message" class="message"></div>
+    <canvas id="gameCanvas"></canvas>
+	<div id="footer">Created by <a href="https://lance.name">Lance</a></a>
+  </div>
+  <div class="controls">
+    <div class="dpad">
+      <div class="dpad-button up" id="upButton"></div>
+      <div class="dpad-button left" id="leftButton"></div>
+      <div class="dpad-button right" id="rightButton"></div>
+      <div class="dpad-button down" id="downButton"></div>
+    </div>
+    <div class="action-buttons">
+      <div class="action-button" id="xButton">X</div>
+    </div>
+  </div>
+  <script src="game.js"></script>
+</body>
+</html>
