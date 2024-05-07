@@ -35,6 +35,28 @@ XVEN is a platform for interactive fiction where the community shapes the narrat
 
 - **Loading Screen:** A loading screen is displayed to ensure smooth asset loading.
 
-## Learn More
+## Requirements
+
+- PHP ^8.1
+- MySQL
+
+## Installation
+
+Follow these steps to set up the game server:
+
+1. Run `composer install` to install Ratchet and other dependencies.
+   
+2. Create a MySQL database and import the `database.sql` file to set up the required tables.
+
+3. Update the `Game.php` class to connect to your MySQL database with the appropriate credentials.
+
+4. Start the server by running `php server.php` in your command line.
+
+5. Update the `game.js` file to connect to your server instance. Make sure the WebSocket URL matches your server configuration.
+
+## Additional Information
+
+Ensure your PHP and MySQL environments are set up correctly before beginning the installation. Check your PHP version by running `php -v` in your terminal. If you encounter any issues, verify your installation steps and connection parameters.
+
 
 Created by [Lance](https://lance.name).
