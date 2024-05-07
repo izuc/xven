@@ -555,11 +555,10 @@ function drawMap() {
 }
 
 function drawPlayers() {
-	console.log('receivedPlayerPositions:', receivedPlayerPositions);
 	// Draw other players first
 	for (let id in receivedPlayerPositions) {
 		const p = receivedPlayerPositions[id];
-		if (id !== playerId) {
+		if (id !== playerId && p.lastUpdate && p.status === 1) {
 			drawPlayer(p);
 		}
 	}
@@ -640,13 +639,10 @@ function handleServerMessage(data) {
 			}
 			break;
 		case 'update':
-			if (data.mapId === player.map_id) {
-				for (let id in data.players) {
+			for (let id in data.players) {
+				if (data.players[id].map_id === player.map_id) {
 					updatePlayerPosition(data.players[id]);
 				}
-			} else {
-				// Clear the receivedPlayerPositions object if the received map ID doesn't match
-				receivedPlayerPositions = {};
 			}
 			render();
 			break;
@@ -662,7 +658,7 @@ function handleServerMessage(data) {
 					player.x += (serverX - player.x) * interpolationFactor;
 					player.y += (serverY - player.y) * interpolationFactor;
 				} else {
-					// Add new player if not existing
+					// Update the status property of the player
 					receivedPlayerPositions[updatedPlayer.id] = {
 						x: updatedPlayer.x,
 						y: updatedPlayer.y,
@@ -673,7 +669,8 @@ function handleServerMessage(data) {
 						characterIndex: updatedPlayer.character_index,
 						frame: updatedPlayer.frame,
 						facing: updatedPlayer.facing,
-						lastUpdate: Date.now()
+						lastUpdate: Date.now(),
+						status: updatedPlayer.status // Add the status property
 					};
 				}
 			}
@@ -789,6 +786,8 @@ function updatePlayerPosition(playerData) {
 		existingPlayer.characterIndex = playerData.character_index !== undefined ? playerData.character_index : existingPlayer.characterIndex;
 		existingPlayer.frame = playerData.frame || existingPlayer.frame;
 		existingPlayer.facing = playerData.facing || existingPlayer.facing;
+		existingPlayer.status = playerData.status !== undefined ? playerData.status : existingPlayer.status;
+		existingPlayer.lastUpdate = Date.now();
 	} else {
 		// Add new player if not existing
 		receivedPlayerPositions[playerData.id] = {
@@ -801,6 +800,8 @@ function updatePlayerPosition(playerData) {
 			characterIndex: playerData.character_index,
 			frame: playerData.frame,
 			facing: playerData.facing,
+			status: playerData.status !== undefined ? playerData.status : 1,
+			lastUpdate: Date.now(),
 		};
 	}
 }
@@ -884,13 +885,15 @@ function isColliding(obj, offsetX, offsetY) {
 	for (let id in receivedPlayerPositions) {
 		if (id !== playerId) {
 			const otherPlayer = receivedPlayerPositions[id];
-			if (collides({
-					x: newX,
-					y: newY,
-					width: obj.width,
-					height: obj.height
-				}, otherPlayer)) {
-				return true;
+			if (otherPlayer.lastUpdate && otherPlayer.status === 1) {
+				if (collides({
+						x: newX,
+						y: newY,
+						width: obj.width,
+						height: obj.height
+					}, otherPlayer)) {
+					return true;
+				}
 			}
 		}
 	}
