@@ -12,6 +12,7 @@ class Game implements MessageComponentInterface
     protected $mapPlayers;
     private $lastBroadcastTime = 0;
     private $movedPlayers = [];
+    private $db;
 
     private const MAP_WIDTH = 25;
     private const MAP_HEIGHT = 20;
@@ -59,9 +60,9 @@ class Game implements MessageComponentInterface
 
         // Initialize the MySQL database connection
         $host = "localhost";
-        $dbName = "database";
-        $username = "username";
-        $password = "password";
+        $dbName = "xven";
+        $username = "xven";
+        $password = "*9PUb9T*Pas4My9[";
 
         try {
             $this->db = new \PDO(
@@ -74,7 +75,7 @@ class Game implements MessageComponentInterface
                 \PDO::ERRMODE_EXCEPTION
             );
         } catch (\PDOException $e) {
-            echo "Database connection failed: " . $e->getMessage();
+            error_log("Database connection failed: " . $e->getMessage());
             exit();
         }
     }
@@ -82,30 +83,7 @@ class Game implements MessageComponentInterface
     public function onOpen(ConnectionInterface $conn)
     {
         $this->clients->attach($conn);
-
-        // Get the player ID from the connection
-        $playerId = $this->getPlayerIdFromConnection($conn);
-
-        if ($playerId !== null && isset($this->players[$playerId])) {
-            $player = $this->players[$playerId];
-            $mapId = $player["map_id"];
-
-            // Send the map data and player data for the current map
-            $mapData = $this->loadMap($mapId);
-            $playersData = $this->getPlayersData($mapId);
-
-            if ($mapData !== null) {
-                $conn->send(
-                    json_encode([
-                        "type" => "init",
-                        "player" => $player,
-                        "mapData" => $mapData,
-                        "players" => $playersData,
-                        "map_id" => $mapId,
-                    ])
-                );
-            }
-        }
+        // Wait for the client to send a 'register' message
     }
 
     private function getPlayerIdFromConnection(ConnectionInterface $conn)
@@ -120,92 +98,122 @@ class Game implements MessageComponentInterface
 
     public function onMessage(ConnectionInterface $from, $msg)
     {
-        $data = json_decode($msg, true);
+        try {
+            $data = json_decode($msg, true);
 
-        if (isset($data["type"])) {
-            if ($data["type"] === "register") {
-                if (isset($data["id"])) {
-                    $playerId = $data["id"];
-                    $this->registerPlayer($from, $playerId);
-                } else {
-                    echo "Player ID is missing during registration.\n";
-                }
-            } elseif ($data["type"] === "move") {
-                if (isset($data["id"])) {
-                    $playerId = $data["id"];
-                    $newX = $data["x"];
-                    $newY = $data["y"];
-                    $facing = $data["facing"] ?? "down";
-                    $frame = $data["frame"] ?? 0;
-                    $this->movePlayer($playerId, $newX, $newY, $facing, $frame);
-                } else {
-                    echo "Player ID is missing during movement.\n";
-                }
-            } elseif ($data["type"] === "character_index") {
-                if (isset($data["id"])) {
-                    $playerId = $data["id"];
-                    $characterIndex = $data["character_index"];
-                    $this->updatePlayerCharacterIndex(
-                        $playerId,
-                        $characterIndex
-                    );
-                } else {
-                    echo "Player ID is missing during character index update.\n";
-                }
-            } elseif ($data["type"] === "get_map") {
-                if (isset($data["mapId"])) {
-                    $mapId = $data["mapId"];
-                    $mapData = $this->loadMap($mapId);
+            if (isset($data["type"])) {
+                switch ($data["type"]) {
+                    case 'register':
+                        if (isset($data["id"])) {
+                            $playerId = $data["id"];
+                            $this->registerPlayer($from, $playerId);
+                        } else {
+                            error_log("Player ID is missing during registration.");
+                        }
+                        break;
+                    case 'move':
+                        if (isset($data["id"])) {
+                            $playerId = $data["id"];
+                            $newX = $data["x"];
+                            $newY = $data["y"];
+                            $facing = $data["facing"] ?? "down";
+                            $frame = $data["frame"] ?? 0;
+                            $this->movePlayer($playerId, $newX, $newY, $facing, $frame);
+                        } else {
+                            error_log("Player ID is missing during movement.");
+                        }
+                        break;
+                    case 'character_index':
+                        if (isset($data["id"])) {
+                            $playerId = $data["id"];
+                            $characterIndex = $data["character_index"];
+                            $this->updatePlayerCharacterIndex(
+                                $playerId,
+                                $characterIndex
+                            );
+                        } else {
+                            error_log("Player ID is missing during character index update.");
+                        }
+                        break;
+                    case 'get_map':
+                        if (isset($data["mapId"])) {
+                            $mapId = $data["mapId"];
+                            $mapData = $this->loadMap($mapId);
 
-                    if ($mapData !== null) {
-                        $from->send(
-                            json_encode([
-                                "type" => "mapData",
-                                "data" => $mapData,
-                            ])
-                        );
-                    }
+                            if ($mapData !== null) {
+                                $from->send(
+                                    json_encode([
+                                        "type" => "mapData",
+                                        "data" => $mapData,
+                                    ])
+                                );
+                            }
+                        }
+                        break;
+                    case 'get_position':
+                        if (isset($data["id"])) {
+                            $playerId = $data["id"];
+                            if (isset($this->players[$playerId])) {
+                                $player = $this->players[$playerId];
+                                $from->send(
+                                    json_encode([
+                                        "type" => "position",
+                                        "id" => $playerId,
+                                        "x" => $player["x"],
+                                        "y" => $player["y"],
+                                    ])
+                                );
+                            }
+                        }
+                        break;
+                    case 'get_players':
+                        if (isset($data["mapId"])) {
+                            $mapId = $data["mapId"];
+                            $playersData = $this->getPlayersData($mapId);
+                            $from->send(
+                                json_encode([
+                                    "type" => "playersData",
+                                    "players" => $playersData,
+                                ])
+                            );
+                        }
+                        break;
+                    default:
+                        error_log("Unknown message type: " . $data["type"]);
+                        break;
                 }
-            } elseif ($data["type"] === "get_position") {
-                if (isset($data["id"])) {
-                    $playerId = $data["id"];
-                    if (isset($this->players[$playerId])) {
-                        $player = $this->players[$playerId];
-                        $from->send(
-                            json_encode([
-                                "type" => "position",
-                                "id" => $playerId,
-                                "x" => $player["x"],
-                                "y" => $player["y"],
-                            ])
-                        );
-                    }
-                }
-            } elseif ($data["type"] === "get_players") {
-                if (isset($data["mapId"])) {
-                    $mapId = $data["mapId"];
-                    $playersData = $this->getPlayersData($mapId);
-                    $from->send(
-                        json_encode([
-                            "type" => "playersData",
-                            "players" => $playersData,
-                        ])
-                    );
-                }
+            } else {
+                error_log("Invalid message format.");
             }
+        } catch (\Exception $e) {
+            $this->handleException($from, $e);
         }
+
         // Check and update the status of inactive players
         $this->updateInactivePlayers();
     }
 
+    private function handleException(ConnectionInterface $conn, \Exception $e)
+    {
+        error_log("An error occurred: " . $e->getMessage());
+        // Optionally, send an error message to the client
+        // $conn->send(json_encode(["type" => "error", "message" => $e->getMessage()]));
+        // Close the connection if necessary
+        // $conn->close();
+    }
+
     private function loadMap($mapId)
     {
-        $stmt = $this->db->prepare("SELECT data FROM maps WHERE id = :mapId");
-        $stmt->bindValue(":mapId", $mapId, \PDO::PARAM_INT);
-        $stmt->execute();
+        try {
+            $stmt = $this->db->prepare("SELECT data FROM maps WHERE id = :mapId");
+            $stmt->bindValue(":mapId", $mapId, \PDO::PARAM_INT);
+            $stmt->execute();
 
-        if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            return json_decode($row["data"], true);
+            if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                return json_decode($row["data"], true);
+            }
+        } catch (\Exception $e) {
+            error_log("Error loading map: " . $e->getMessage());
         }
 
         return null;
@@ -214,84 +222,94 @@ class Game implements MessageComponentInterface
     private function updatePlayerCharacterIndex($playerId, $characterIndex)
     {
         if (isset($this->players[$playerId])) {
-            // Update the player's character_index
-            $this->players[$playerId]["character_index"] = $characterIndex;
+            try {
+                // Update the player's character_index
+                $this->players[$playerId]["character_index"] = $characterIndex;
 
-            // Update the player's character_index in the database
-            $stmt = $this->db->prepare(
-                "UPDATE players SET character_index = :character_index WHERE id = :id"
-            );
-            $stmt->bindValue(
-                ":character_index",
-                $characterIndex,
-                \PDO::PARAM_STR
-            );
-            $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
-            $stmt->execute();
+                // Update the player's character_index in the database
+                $stmt = $this->db->prepare(
+                    "UPDATE players SET character_index = :character_index WHERE id = :id"
+                );
+                $stmt->bindValue(
+                    ":character_index",
+                    $characterIndex,
+                    \PDO::PARAM_STR
+                );
+                $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
+                $stmt->execute();
 
-            // Broadcast the updated player positions to all clients
-            $this->broadcastPlayerPositions(
-                $this->players[$playerId]["map_id"]
-            );
+                // Broadcast the updated player positions to all clients
+                $this->broadcastPlayerPositions(
+                    $this->players[$playerId]["map_id"]
+                );
+            } catch (\Exception $e) {
+                error_log("Error updating player character index: " . $e->getMessage());
+            }
         }
     }
 
     public function registerPlayer(ConnectionInterface $conn, $playerId)
     {
-        if (!isset($this->players[$playerId])) {
-            $stmt = $this->db->prepare("SELECT * FROM players WHERE id = :id");
-            $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
-            $stmt->execute();
+        try {
+            if (!isset($this->players[$playerId])) {
+                $stmt = $this->db->prepare("SELECT * FROM players WHERE id = :id");
+                $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
+                $stmt->execute();
 
-            if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-                $this->players[$playerId] = [
-                    "id" => $playerId,
-                    "x" => $row["x"],
-                    "y" => $row["y"],
-                    "width" => 32, // Assuming fixed size, adjust as necessary
-                    "height" => 32,
-                    "character_index" => $row["character_index"],
-                    "facing" => $row["facing"],
-                    "frame" => $row["frame"],
-                    "map_id" => $row["map_id"],
-                    "connection" => $conn,
-                ];
-
-                // Send initial player data and map data only for the current map
-                $mapData = $this->loadMap($row["map_id"]);
-                $playersData = $this->getPlayersData($row["map_id"]);
-
-                $conn->send(
-                    json_encode([
-                        "type" => "init",
-                        "player" => $this->players[$playerId],
-                        "mapData" => $mapData,
-                        "players" => $playersData,
+                if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                    $this->players[$playerId] = [
+                        "id" => $playerId,
+                        "x" => $row["x"],
+                        "y" => $row["y"],
+                        "width" => 32, // Assuming fixed size, adjust as necessary
+                        "height" => 32,
+                        "character_index" => $row["character_index"],
+                        "facing" => $row["facing"],
+                        "frame" => $row["frame"],
                         "map_id" => $row["map_id"],
-                    ])
-                );
-            } else {
-                // Create a new player without passing $characterIndex
-                $this->createNewPlayer($playerId, $conn);
+                        "status" => $row["status"],
+                        "last_active" => time(),
+                        "connection" => $conn,
+                    ];
 
-                // Send initial player data and map data only for the current map
-                $mapData = $this->loadMap(1);
-                $playersData = $this->getPlayersData(1);
+                    // Send initial player data and map data only for the current map
+                    $mapData = $this->loadMap($row["map_id"]);
+                    $playersData = $this->getPlayersData($row["map_id"]);
 
-                $conn->send(
-                    json_encode([
-                        "type" => "init",
-                        "player" => $this->players[$playerId],
-                        "mapData" => $mapData,
-                        "players" => $playersData,
-                        "map_id" => 1,
-                    ])
-                );
+                    $conn->send(
+                        json_encode([
+                            "type" => "init",
+                            "player" => $this->players[$playerId],
+                            "mapData" => $mapData,
+                            "players" => $playersData,
+                            "map_id" => $row["map_id"],
+                        ])
+                    );
+                } else {
+                    // Create a new player without passing $characterIndex
+                    $this->createNewPlayer($playerId, $conn);
+
+                    // Send initial player data and map data only for the current map
+                    $mapData = $this->loadMap(1);
+                    $playersData = $this->getPlayersData(1);
+
+                    $conn->send(
+                        json_encode([
+                            "type" => "init",
+                            "player" => $this->players[$playerId],
+                            "mapData" => $mapData,
+                            "players" => $playersData,
+                            "map_id" => 1,
+                        ])
+                    );
+                }
+                $this->addToMap($playerId, $this->players[$playerId]["map_id"]);
             }
-            $this->addToMap($playerId, $this->players[$playerId]["map_id"]);
-        }
 
-        $this->broadcastPlayerPositions($this->players[$playerId]["map_id"]);
+            $this->broadcastPlayerPositions($this->players[$playerId]["map_id"]);
+        } catch (\Exception $e) {
+            $this->handleException($conn, $e);
+        }
     }
 
     private function createNewPlayer(
@@ -299,43 +317,47 @@ class Game implements MessageComponentInterface
         ConnectionInterface $conn,
         $characterIndex = 0
     ) {
-        $width = 32;
-        $height = 32;
-        $position = $this->findNonOverlappingPosition($width, $height);
-        $initialFrame = 0; // Starting frame index for the animation
-        $initialMapId = 1;
+        try {
+            $width = 32;
+            $height = 32;
+            $position = $this->findNonOverlappingPosition($width, $height);
+            $initialFrame = 0; // Starting frame index for the animation
+            $initialMapId = 1;
 
-        $this->players[$playerId] = [
-            "id" => $playerId,
-            "x" => $position["x"],
-            "y" => $position["y"],
-            "width" => $width,
-            "height" => $height,
-            "character_index" => $characterIndex,
-            "facing" => "down",
-            "frame" => $initialFrame,
-            "map_id" => $initialMapId,
-            "status" => 1,
-            "last_active" => time(),
-            "connection" => $conn,
-        ];
+            $this->players[$playerId] = [
+                "id" => $playerId,
+                "x" => $position["x"],
+                "y" => $position["y"],
+                "width" => $width,
+                "height" => $height,
+                "character_index" => $characterIndex,
+                "facing" => "down",
+                "frame" => $initialFrame,
+                "map_id" => $initialMapId,
+                "status" => 1,
+                "last_active" => time(),
+                "connection" => $conn,
+            ];
 
-        // Insert the new player into the database
-        $stmt = $this->db->prepare(
-            "INSERT INTO players (id, x, y, width, height, character_index, facing, frame, map_id, status, last_active) VALUES (:id, :x, :y, :width, :height, :character_index, :facing, :frame, :map_id, :status, :last_active)"
-        );
-        $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
-        $stmt->bindValue(":x", $position["x"], \PDO::PARAM_INT);
-        $stmt->bindValue(":y", $position["y"], \PDO::PARAM_INT);
-        $stmt->bindValue(":width", $width, \PDO::PARAM_INT);
-        $stmt->bindValue(":height", $height, \PDO::PARAM_INT);
-        $stmt->bindValue(":character_index", $characterIndex, \PDO::PARAM_INT);
-        $stmt->bindValue(":facing", "down", \PDO::PARAM_STR);
-        $stmt->bindValue(":frame", $initialFrame, \PDO::PARAM_INT);
-        $stmt->bindValue(":map_id", $initialMapId, \PDO::PARAM_INT);
-        $stmt->bindValue(":status", 1, \PDO::PARAM_INT);
-        $stmt->bindValue(":last_active", time(), \PDO::PARAM_INT);
-        $stmt->execute();
+            // Insert the new player into the database
+            $stmt = $this->db->prepare(
+                "INSERT INTO players (id, x, y, width, height, character_index, facing, frame, map_id, status, last_active) VALUES (:id, :x, :y, :width, :height, :character_index, :facing, :frame, :map_id, :status, :last_active)"
+            );
+            $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
+            $stmt->bindValue(":x", $position["x"], \PDO::PARAM_INT);
+            $stmt->bindValue(":y", $position["y"], \PDO::PARAM_INT);
+            $stmt->bindValue(":width", $width, \PDO::PARAM_INT);
+            $stmt->bindValue(":height", $height, \PDO::PARAM_INT);
+            $stmt->bindValue(":character_index", $characterIndex, \PDO::PARAM_INT);
+            $stmt->bindValue(":facing", "down", \PDO::PARAM_STR);
+            $stmt->bindValue(":frame", $initialFrame, \PDO::PARAM_INT);
+            $stmt->bindValue(":map_id", $initialMapId, \PDO::PARAM_INT);
+            $stmt->bindValue(":status", 1, \PDO::PARAM_INT);
+            $stmt->bindValue(":last_active", time(), \PDO::PARAM_INT);
+            $stmt->execute();
+        } catch (\Exception $e) {
+            error_log("Error creating new player: " . $e->getMessage());
+        }
     }
 
     private function broadcastPlayerLeaveMap($playerId, $mapId)
@@ -350,7 +372,11 @@ class Game implements MessageComponentInterface
                 if (isset($this->players[$id])) {
                     $conn = $this->players[$id]["connection"];
                     if ($conn !== null) {
-                        $conn->send($payload);
+                        try {
+                            $conn->send($payload);
+                        } catch (\Exception $e) {
+                            error_log("Error broadcasting player leave map: " . $e->getMessage());
+                        }
                     }
                 }
             }
@@ -368,12 +394,16 @@ class Game implements MessageComponentInterface
             // Update the player's status if it was previously inactive
             if ($player["status"] == 0) {
                 $player["status"] = 1;
-                $stmt = $this->db->prepare(
-                    "UPDATE players SET status = 1, last_active = :last_active WHERE id = :id"
-                );
-                $stmt->bindValue(":last_active", $currentTime, \PDO::PARAM_INT);
-                $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
-                $stmt->execute();
+                try {
+                    $stmt = $this->db->prepare(
+                        "UPDATE players SET status = 1, last_active = :last_active WHERE id = :id"
+                    );
+                    $stmt->bindValue(":last_active", $currentTime, \PDO::PARAM_INT);
+                    $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
+                    $stmt->execute();
+                } catch (\Exception $e) {
+                    error_log("Error updating player status: " . $e->getMessage());
+                }
             }
 
             // Check for map transitions
@@ -392,14 +422,18 @@ class Game implements MessageComponentInterface
                 $player["y"] = $transitionData["y"];
 
                 // Update the player's map_id in the database
-                $stmt = $this->db->prepare(
-                    "UPDATE players SET map_id = :map_id, x = :x, y = :y WHERE id = :id"
-                );
-                $stmt->bindValue(":map_id", $player["map_id"], \PDO::PARAM_INT);
-                $stmt->bindValue(":x", $player["x"], \PDO::PARAM_INT);
-                $stmt->bindValue(":y", $player["y"], \PDO::PARAM_INT);
-                $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
-                $stmt->execute();
+                try {
+                    $stmt = $this->db->prepare(
+                        "UPDATE players SET map_id = :map_id, x = :x, y = :y WHERE id = :id"
+                    );
+                    $stmt->bindValue(":map_id", $player["map_id"], \PDO::PARAM_INT);
+                    $stmt->bindValue(":x", $player["x"], \PDO::PARAM_INT);
+                    $stmt->bindValue(":y", $player["y"], \PDO::PARAM_INT);
+                    $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
+                    $stmt->execute();
+                } catch (\Exception $e) {
+                    error_log("Error updating player map_id: " . $e->getMessage());
+                }
 
                 // Remove player from old map and add to new map
                 $this->removeFromMap($playerId, $oldMapId);
@@ -446,23 +480,27 @@ class Game implements MessageComponentInterface
                 );
 
                 // Update the player's last_active time in the database
-                $stmt = $this->db->prepare(
-                    "UPDATE players SET last_active = :last_active WHERE id = :id"
-                );
-                $stmt->bindValue(":last_active", $currentTime, \PDO::PARAM_INT);
-                $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
-                $stmt->execute();
+                try {
+                    $stmt = $this->db->prepare(
+                        "UPDATE players SET last_active = :last_active WHERE id = :id"
+                    );
+                    $stmt->bindValue(":last_active", $currentTime, \PDO::PARAM_INT);
+                    $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
+                    $stmt->execute();
+                } catch (\Exception $e) {
+                    error_log("Error updating player last_active: " . $e->getMessage());
+                }
 
                 // Add the player to the list of moved players
                 $this->movedPlayers[$playerId] = true;
             }
 
             // Check if enough time has elapsed since the last broadcast
-            $currentTime = microtime(true);
-            if ($currentTime - $this->lastBroadcastTime >= 0.05) {
+            $currentTimeMicro = microtime(true);
+            if ($currentTimeMicro - $this->lastBroadcastTime >= 0.05) {
                 // Adjust the interval as needed
                 $this->broadcastMovedPlayerPositions();
-                $this->lastBroadcastTime = $currentTime;
+                $this->lastBroadcastTime = $currentTimeMicro;
             }
         }
     }
@@ -477,11 +515,15 @@ class Game implements MessageComponentInterface
                 time() - $player["last_active"] >= $inactiveTime
             ) {
                 $player["status"] = 0;
-                $stmt = $this->db->prepare(
-                    "UPDATE players SET status = 0 WHERE id = :id"
-                );
-                $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
-                $stmt->execute();
+                try {
+                    $stmt = $this->db->prepare(
+                        "UPDATE players SET status = 0 WHERE id = :id"
+                    );
+                    $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
+                    $stmt->execute();
+                } catch (\Exception $e) {
+                    error_log("Error updating inactive player status: " . $e->getMessage());
+                }
             }
         }
     }
@@ -524,6 +566,7 @@ class Game implements MessageComponentInterface
         foreach ($this->players as $otherId => $otherPlayer) {
             if (
                 $otherId !== $playerId &&
+                $otherPlayer["map_id"] === $player["map_id"] &&
                 $this->isColliding(
                     $newX,
                     $newY,
@@ -547,7 +590,8 @@ class Game implements MessageComponentInterface
                 $newX,
                 $newY,
                 $player["width"],
-                $player["height"]
+                $player["height"],
+                $player["map_id"]
             )
         ) {
             $collision = true;
@@ -563,15 +607,19 @@ class Game implements MessageComponentInterface
             $player["frame"] = $frame ?? 0;
 
             // Perform the database update
-            $stmt = $this->db->prepare(
-                "UPDATE players SET x = :x, y = :y, facing = :facing, frame = :frame WHERE id = :id"
-            );
-            $stmt->bindValue(":x", $newX, \PDO::PARAM_INT);
-            $stmt->bindValue(":y", $newY, \PDO::PARAM_INT);
-            $stmt->bindValue(":facing", $facing, \PDO::PARAM_STR);
-            $stmt->bindValue(":frame", $player["frame"], \PDO::PARAM_INT);
-            $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
-            $stmt->execute();
+            try {
+                $stmt = $this->db->prepare(
+                    "UPDATE players SET x = :x, y = :y, facing = :facing, frame = :frame WHERE id = :id"
+                );
+                $stmt->bindValue(":x", $newX, \PDO::PARAM_INT);
+                $stmt->bindValue(":y", $newY, \PDO::PARAM_INT);
+                $stmt->bindValue(":facing", $facing, \PDO::PARAM_STR);
+                $stmt->bindValue(":frame", $player["frame"], \PDO::PARAM_INT);
+                $stmt->bindValue(":id", $playerId, \PDO::PARAM_STR);
+                $stmt->execute();
+            } catch (\Exception $e) {
+                error_log("Error updating player position: " . $e->getMessage());
+            }
 
             // Broadcast the updated player position to all clients
             $this->broadcastPlayerPosition($playerId);
@@ -622,26 +670,30 @@ class Game implements MessageComponentInterface
 
     private function handleTransition($currentMapId, $directionField, $x, $y)
     {
-        $stmt = $this->db->prepare(
-            "SELECT $directionField FROM maps WHERE id = ?"
-        );
-        $stmt->execute([$currentMapId]);
-        $result = $stmt->fetch(\PDO::FETCH_ASSOC);
-        if ($result && $result[$directionField]) {
-            return [
-                "map_id" => $result[$directionField],
-                "x" => $x,
-                "y" => $y,
-            ];
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT $directionField FROM maps WHERE id = ?"
+            );
+            $stmt->execute([$currentMapId]);
+            $result = $stmt->fetch(\PDO::FETCH_ASSOC);
+            if ($result && $result[$directionField]) {
+                return [
+                    "map_id" => $result[$directionField],
+                    "x" => $x,
+                    "y" => $y,
+                ];
+            }
+        } catch (\Exception $e) {
+            error_log("Error handling map transition: " . $e->getMessage());
         }
         return null;
     }
 
-    private function isCollidingWithMap($x, $y, $width, $height)
+    private function isCollidingWithMap($x, $y, $width, $height, $mapId)
     {
-        $tileSize = 32;
-        $mapWidth = 25;
-        $mapHeight = 20;
+        $tileSize = self::TILE_SIZE;
+        $mapWidth = self::MAP_WIDTH;
+        $mapHeight = self::MAP_HEIGHT;
 
         // Calculate all corners of the new position
         $leftX = floor($x / $tileSize);
@@ -659,6 +711,13 @@ class Game implements MessageComponentInterface
             return true;
         }
 
+        // Load map data
+        $tileData = $this->loadMap($mapId);
+        if ($tileData === null) {
+            error_log("Error: Map data is null for map ID $mapId");
+            return true;
+        }
+
         // Check for collision with any non-walkable tile in the area covered
         for ($row = $topY; $row <= $bottomY; $row++) {
             for ($col = $leftX; $col <= $rightX; $col++) {
@@ -670,7 +729,9 @@ class Game implements MessageComponentInterface
                 ) {
                     continue; // Skip checking out of bounds indices
                 }
-                $tileData = $this->loadMap(1); // Assuming map ID is 1
+                if (!isset($tileData[$row][$col])) {
+                    continue;
+                }
                 if (
                     !$this->isWalkable(
                         $tileData[$row][$col][0],
@@ -764,22 +825,26 @@ class Game implements MessageComponentInterface
     {
         $playersData = [];
 
-        $stmt = $this->db->prepare(
-            "SELECT * FROM players WHERE map_id = :mapId AND status = 1"
-        );
-        $stmt->bindValue(":mapId", $mapId, \PDO::PARAM_INT);
-        $stmt->execute();
+        try {
+            $stmt = $this->db->prepare(
+                "SELECT * FROM players WHERE map_id = :mapId AND status = 1"
+            );
+            $stmt->bindValue(":mapId", $mapId, \PDO::PARAM_INT);
+            $stmt->execute();
 
-        while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
-            $playersData[$row["id"]] = [
-                "x" => $row["x"],
-                "y" => $row["y"],
-                "character_index" => $row["character_index"],
-                "facing" => $row["facing"],
-                "frame" => $row["frame"],
-                "map_id" => $row["map_id"],
-                "status" => $row["status"],
-            ];
+            while ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                $playersData[$row["id"]] = [
+                    "x" => $row["x"],
+                    "y" => $row["y"],
+                    "character_index" => $row["character_index"],
+                    "facing" => $row["facing"],
+                    "frame" => $row["frame"],
+                    "map_id" => $row["map_id"],
+                    "status" => $row["status"],
+                ];
+            }
+        } catch (\Exception $e) {
+            error_log("Error getting players data: " . $e->getMessage());
         }
 
         return $playersData;
@@ -799,7 +864,11 @@ class Game implements MessageComponentInterface
                 if (isset($this->players[$id])) {
                     $conn = $this->players[$id]["connection"];
                     if ($conn !== null) {
-                        $conn->send($payload);
+                        try {
+                            $conn->send($payload);
+                        } catch (\Exception $e) {
+                            error_log("Error broadcasting player positions: " . $e->getMessage());
+                        }
                     }
                 }
             }
@@ -810,12 +879,14 @@ class Game implements MessageComponentInterface
     {
         if (!isset($this->players[$playerId])) {
             // Log or handle the error: Player not found
+            error_log("Error broadcasting player position: Player ID $playerId not found.");
             return;
         }
 
         $player = $this->players[$playerId];
         if ($player["connection"] === null) {
             // Connection is null, handle the case, perhaps reinitialize or log error
+            error_log("Error broadcasting player position: Connection is null for Player ID $playerId.");
             return;
         }
 
@@ -841,7 +912,11 @@ class Game implements MessageComponentInterface
                 if (isset($this->players[$id])) {
                     $conn = $this->players[$id]["connection"];
                     if ($conn !== null) {
-                        $conn->send($payload);
+                        try {
+                            $conn->send($payload);
+                        } catch (\Exception $e) {
+                            error_log("Error broadcasting player position: " . $e->getMessage());
+                        }
                     }
                 }
             }
@@ -865,16 +940,7 @@ class Game implements MessageComponentInterface
 
     public function onError(ConnectionInterface $conn, \Exception $e)
     {
-        if (
-            $e instanceof \RuntimeException &&
-            strpos($e->getMessage(), "Unable to write to stream") !== false
-        ) {
-            // Handle the specific exception
-            $conn->close();
-        } else {
-            // Handle other exceptions
-            echo "An error has occurred: {$e->getMessage()}\n";
-            $conn->close();
-        }
+        error_log("An error has occurred: {$e->getMessage()}");
+        $conn->close();
     }
 }
