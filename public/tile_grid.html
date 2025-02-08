@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Tileset Grid Matrix</title>
+  <style>
+    .grid-container {
+      display: grid;
+      grid-template-columns: repeat(40, 40px);
+      grid-template-rows: repeat(40, 40px);
+      gap: 10px;
+    }
+    .grid-item {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      border: 1px solid #999;
+      overflow: hidden;
+    }
+    .grid-item canvas {
+      width: 100%;
+      height: 100%;
+    }
+    .grid-item span {
+      position: absolute;
+      top: 0;
+      left: 0;
+      font-size: 10px;
+      background-color: rgba(255, 255, 255, 0.6);
+      padding: 2px;
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-container" id="gridContainer"></div>
+
+  <script>
+    const tilesetImage = new Image();
+    tilesetImage.src = 'tileset.png';
+    tilesetImage.onload = function() {
+      drawTilesetGrid();
+    };
+
+    function drawTilesetGrid() {
+      const tileWidth = 16;
+      const tileHeight = 16;
+      const cols = 40;
+      const rows = 40;
+
+      const gridContainer = document.getElementById('gridContainer');
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < cols; col++) {
+          const gridItem = document.createElement('div');
+          gridItem.className = 'grid-item';
+
+          const canvas = document.createElement('canvas');
+          canvas.width = tileWidth;
+          canvas.height = tileHeight;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(
+            tilesetImage,
+            col * tileWidth,
+            row * tileHeight,
+            tileWidth,
+            tileHeight,
+            0,
+            0,
+            tileWidth,
+            tileHeight
+          );
+          gridItem.appendChild(canvas);
+
+          const coordinates = document.createElement('span');
+          coordinates.textContent = `(${row}, ${col})`;
+          gridItem.appendChild(coordinates);
+
+          gridContainer.appendChild(gridItem);
+        }
+      }
+    }
+  </script>
+</body>
+</html>

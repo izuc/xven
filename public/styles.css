@@ -1,0 +1,241 @@
+@font-face {
+  font-family: "8bit";
+  src: url("8bit.ttf") format("truetype");
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background-color: #000;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: "8bit";
+}
+
+#logo {
+  font-family: "8bit";
+  padding: 10px;
+  margin-left: 25px;
+  font-size: 24px;
+  font-weight: bold;
+}
+
+.game-container {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  height: 640px;
+}
+
+.readme {
+  position: relative;
+  width: 100%;
+  max-width: 800px;
+  color: #fff;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.message {
+  display: none;
+  color: blue;
+  text-align: center;
+  font-size: 20px;
+  padding: 10px;
+  background-color: rgba(255, 255, 255, 0.8);
+  border-radius: 5px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+}
+
+.hud {
+  margin-top: 5px;
+  margin-bottom: 5px;
+  color: #000;
+  font-family: Arial, sans-serif;
+  font-size: 16px;
+  background-color: #fff;
+  width: 100%;
+}
+
+.controls {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  opacity: 0.5;
+}
+
+.dpad {
+  position: relative;
+  width: 150px;
+  height: 150px;
+  margin-right: 20px;
+}
+
+.dpad-button {
+  position: absolute;
+  width: 50px;
+  height: 50px;
+  background-color: #ccc;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+}
+
+.dpad-button::before {
+  content: "";
+  width: 0;
+  height: 0;
+  border-style: solid;
+}
+
+.dpad-button.up {
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.dpad-button.up::before {
+  border-width: 0 10px 10px 10px;
+  border-color: transparent transparent #000 transparent;
+}
+
+.dpad-button.left {
+  top: 50%;
+  left: 0;
+  transform: translateY(-50%);
+}
+
+.dpad-button.left::before {
+  border-width: 10px 10px 10px 0;
+  border-color: transparent #000 transparent transparent;
+}
+
+.dpad-button.right {
+  top: 50%;
+  right: 0;
+  transform: translateY(-50%);
+}
+
+.dpad-button.right::before {
+  border-width: 10px 0 10px 10px;
+  border-color: transparent transparent transparent #000;
+}
+
+.dpad-button.down {
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.dpad-button.down::before {
+  border-width: 10px 10px 0 10px;
+  border-color: #000 transparent transparent transparent;
+}
+
+.action-buttons {
+  display: flex;
+}
+
+.action-button {
+  width: 60px;
+  height: 60px;
+  background-color: #ccc;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-left: 10px;
+  cursor: pointer;
+}
+
+#footer {
+  float: right;
+}
+
+#footer,
+#footer a {
+  color: #fff;
+}
+
+#characterSelection {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 10px;
+  flex-wrap: wrap; /* Allow items to wrap onto the next line */
+}
+
+.character-option {
+  width: 32px;
+  height: 32px;
+  margin: 5px; /* Adjust margin to ensure even spacing */
+  cursor: pointer;
+  border: 2px solid transparent;
+}
+
+.character-option.selected {
+  border-color: #000;
+}
+
+@media screen and (max-width: 600px) {
+  .game-container {
+    height: 480px;
+  }
+
+  .hud {
+    font-size: 14px;
+  }
+
+  .dpad {
+    width: 120px;
+    height: 120px;
+  }
+
+  .dpad-button {
+    width: 40px;
+    height: 40px;
+  }
+
+  .action-button {
+    width: 50px;
+    height: 50px;
+  }
+
+  .message {
+    font-size: 16px;
+    padding: 8px;
+  }
+
+  #characterSelection {
+    justify-content: space-around; /* Adjust spacing to fill space on smaller screens */
+  }
+}
+
+.loading-screen {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.8);
+  color: white;
+  font-size: 24px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+}
